@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -18,14 +19,21 @@ func main() {
 		return
 	}
 
+	// 使用 bufio 读取整行输入
+	readerInput := bufio.NewReader(os.Stdin)
+
 	// 提示用户输入
-	var appLabel, oldLabel, newLabel string
 	fmt.Print("Enter the application label to filter (press Enter to skip): ")
-	fmt.Scanln(&appLabel)
+	appLabel, _ := readerInput.ReadString('\n')
+	appLabel = strings.TrimSpace(appLabel) // 去除多余空格
+
 	fmt.Print("The label needs to be replaced: ")
-	fmt.Scanln(&oldLabel)
+	oldLabel, _ := readerInput.ReadString('\n')
+	oldLabel = strings.TrimSpace(oldLabel) // 去除多余空格
+
 	fmt.Print("The new label: ")
-	fmt.Scanln(&newLabel)
+	newLabel, _ := readerInput.ReadString('\n')
+	newLabel = strings.TrimSpace(newLabel) // 去除多余空格
 
 	// 打开CSV文件
 	file, err := os.Open(*inputFile)
@@ -79,6 +87,7 @@ func main() {
 
 	// 替换scope列中的label并生成新的记录，只保留匹配的行
 	labelFound := false
+	appLabelFound := false
 	for _, record := range records[1:] {
 		scope := record[scopeIndex]
 		kvPairs := strings.Split(scope, ";")
@@ -87,11 +96,18 @@ func main() {
 		for i, kv := range kvPairs {
 			parts := strings.SplitN(kv, ":", 2)
 			if len(parts) == 2 {
-				if parts[0] == "app" && (appLabel == "" || parts[1] == appLabel) {
-					appMatch = true
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+
+				if key == "app" {
+					if appLabel == "" || value == appLabel {
+						appMatch = true
+						appLabelFound = true
+					}
 				}
-				if parts[1] == oldLabel {
-					kvPairs[i] = parts[0] + ":" + newLabel
+
+				if value == oldLabel {
+					kvPairs[i] = key + ":" + newLabel
 					labelFound = true
 					modified = true
 				}
@@ -113,12 +129,13 @@ func main() {
 		}
 	}
 
+	if !appLabelFound && appLabel != "" {
+		fmt.Println("Error: The specified application label was not found in the 'scope' column.")
+		return
+	}
+
 	if !labelFound {
-		if appLabel == "" {
-			fmt.Println("Error: The specified label was not found in the 'scope' column.")
-		} else {
-			fmt.Println("Error: The specified application label was not found in the 'scope' column.")
-		}
+		fmt.Println("Error: The specified label was not found in the 'scope' column.")
 		return
 	}
 
@@ -149,4 +166,3 @@ func removeColumn(record []string, index int) []string {
 	}
 	return append(record[:index], record[index+1:]...)
 }
-
